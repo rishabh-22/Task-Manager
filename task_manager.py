@@ -1,8 +1,9 @@
 import sys
-
 import psutil
-from PyQt5.QtWidgets import QTableWidget, QApplication, QMainWindow, QTableWidgetItem, QMenu
+from PyQt5.QtWidgets import QTableWidget, QApplication, QMainWindow, QTableWidgetItem, QMenu, QAbstractItemView, \
+    QMessageBox, QSlider, QWidget
 from PyQt5 import QtCore
+from PyQt5.QtCore import Qt
 import psutil_test
 
 
@@ -33,9 +34,9 @@ class TaskManager(QMainWindow):
     def __init__(self):
         super().__init__()
         rows = psutil_test.rows
-        self.form_widget = MyTable(rows, 9)
+        self.form_widget = MyTable(rows, 10)
         self.setCentralWidget(self.form_widget)
-        col_headers = ['Process ID', 'Process Name', 'User', 'Virtual Memory', 'Reserved Memory', 'Shared Memory', 'Memory %', 'CPU Usage %', 'Path']
+        col_headers = ['P-ID', 'P-Name', 'User', 'Virt-Mem', 'Res-Mem', 'Shd-Mem', 'Mem %', 'CPU %', 'Path', 'Priority']
         self.key = 'pid'
         self.flag = False
         self.form_widget.setHorizontalHeaderLabels(col_headers)
@@ -43,6 +44,7 @@ class TaskManager(QMainWindow):
         self.timer.setInterval(3000)
         self.timer.timeout.connect(self.change_values)
         self.form_widget.horizontalHeader().sectionClicked.connect(self.set_values)
+        self.form_widget.setSelectionBehavior(QAbstractItemView.SelectRows)
 
     @QtCore.pyqtSlot()
     def change_values(self):
@@ -62,26 +64,65 @@ class TaskManager(QMainWindow):
             self.form_widget.setItem(i, 6, QTableWidgetItem("%.2f " % (process['mem_per'])))
             self.form_widget.setItem(i, 7, QTableWidgetItem(str(process['cpu'])))
             self.form_widget.setItem(i, 8, QTableWidgetItem(str(process['path'])))
+            self.form_widget.setItem(i, 9, QTableWidgetItem(str(process['priority'])))
 
     def contextMenuEvent(self, event):
         context_menu = QMenu(self)
         kill_act = context_menu.addAction("Kill")
         quit_act = context_menu.addAction("Quit")
+        change_priority = context_menu.addMenu("Change priority")
+
+        highest_priority = change_priority.addAction("HIGHEST")
+        high_priority = change_priority.addAction("HIGH")
+        medium_priority = change_priority.addAction("MEDIUM")
+        low_priority = change_priority.addAction("LOW")
+        lowest_priority = change_priority.addAction("LOWEST")
+        custom_priority = change_priority.addAction("CUSTOM")
+
         action = context_menu.exec_(self.mapToGlobal(event.pos()))
         if action == quit_act:
             self.close()
+
         if action == kill_act:
             id = self.form_widget.get_current_id()
-            print(id)
             process = psutil.Process(pid=int(id))
-            print(process.cpu_percent())
-            process.kill()
+            self.confirm_kill_process(process)
+
+        if action == highest_priority:
+            id = self.form_widget.get_current_id()
+            process = psutil.Process(pid=int(id))
+            process.nice(-20)
+
+        if action == high_priority:
+            id = self.form_widget.get_current_id()
+            process = psutil.Process(pid=int(id))
+            process.nice(-10)
+
+        if action == medium_priority:
+            id = self.form_widget.get_current_id()
+            process = psutil.Process(pid=int(id))
+            process.nice(0)
+
+        if action == low_priority:
+            id = self.form_widget.get_current_id()
+            process = psutil.Process(pid=int(id))
+            process.nice(10)
+
+        if action == lowest_priority:
+            id = self.form_widget.get_current_id()
+            process = psutil.Process(pid=int(id))
+            process.nice(-20)
+
+        if action == custom_priority:
+            id = self.form_widget.get_current_id()
+            process = psutil.Process(pid=int(id))
+            self.set_custom_priority(process)
 
     def sort_list(self, sort_list, key, flag):
         return sorted(sort_list, key=lambda obj: obj[key], reverse=flag)
 
     def set_values(self, col):
-        print(col)
+        # print(col)
         if col == 0:
             self.flag = not self.flag
             self.key = 'pid'
@@ -117,6 +158,18 @@ class TaskManager(QMainWindow):
         if col == 8:
             self.flag = not self.flag
             self.key = 'path'
+
+    def confirm_kill_process(self, process):
+        message = QMessageBox.question(self, "Kill Process", "Are you sure you want to kill this process ?",
+                                       QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if message == QMessageBox.Yes:
+            process.kill()
+        else:
+            pass
+
+    def set_custom_priority(self, process):
+
+        pass
 
 
 app = QApplication(sys.argv)

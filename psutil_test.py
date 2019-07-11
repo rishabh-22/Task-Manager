@@ -20,6 +20,7 @@ def getListOfProcesses():
             pinfo['mem_per'] = proc.memory_percent()
             pinfo['cpu'] = proc.cpu_percent()
             pinfo['path'] = proc.cwd()
+            pinfo['priority'] = proc.nice()
 
             # Append dict to list
             listOfProcObjects.append(pinfo)
