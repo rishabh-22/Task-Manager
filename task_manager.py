@@ -1,7 +1,7 @@
 import sys
 import psutil
 from PyQt5.QtWidgets import QTableWidget, QApplication, QMainWindow, QTableWidgetItem, QMenu, QAbstractItemView, \
-    QMessageBox, QSlider, QWidget
+    QMessageBox, QSlider, QWidget, QVBoxLayout, QPushButton, QDialog, QLineEdit, QLabel, QHBoxLayout
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
 import psutil_test
@@ -20,10 +20,10 @@ class MyTable(QTableWidget):
 
 
 def get_formatted_memory(memory_in_bytes):
-    if memory_in_bytes > 1024*1024*1024:
-        return "%.2f GB" % (memory_in_bytes / (1024*1024*1024))
-    elif memory_in_bytes > 1024*1024:
-        return "%.2f MB" % (memory_in_bytes / (1024*1024))
+    if memory_in_bytes > 1024 * 1024 * 1024:
+        return "%.2f GB" % (memory_in_bytes / (1024 * 1024 * 1024))
+    elif memory_in_bytes > 1024 * 1024:
+        return "%.2f MB" % (memory_in_bytes / (1024 * 1024))
     elif memory_in_bytes > 1024:
         return "%.2f KB" % (memory_in_bytes / 1024)
     else:
@@ -45,6 +45,9 @@ class TaskManager(QMainWindow):
         self.timer.timeout.connect(self.change_values)
         self.form_widget.horizontalHeader().sectionClicked.connect(self.set_values)
         self.form_widget.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.b1 = QPushButton()
+        self.l1 = QLabel()
+        self.s1 = QSlider(Qt.Horizontal)
 
     @QtCore.pyqtSlot()
     def change_values(self):
@@ -69,8 +72,8 @@ class TaskManager(QMainWindow):
     def contextMenuEvent(self, event):
         context_menu = QMenu(self)
         kill_act = context_menu.addAction("Kill")
-        quit_act = context_menu.addAction("Quit")
         change_priority = context_menu.addMenu("Change priority")
+        quit_act = context_menu.addAction("Exit")
 
         highest_priority = change_priority.addAction("HIGHEST")
         high_priority = change_priority.addAction("HIGH")
@@ -168,8 +171,39 @@ class TaskManager(QMainWindow):
             pass
 
     def set_custom_priority(self, process):
+        d = QDialog()
+        self.b1 = QPushButton("Set Priority", d)
+        self.l1 = QLabel()
+        self.l1.setText(str(process.nice()))
+        self.s1 = QSlider(Qt.Horizontal)
+        d.setWindowTitle("Change Priority")
+        d.setGeometry(100, 100, 300, 100)
+        hbox = QHBoxLayout()
+        vbox = QVBoxLayout()
+        self.s1.setMinimum(-20)
+        self.s1.setMaximum(19)
+        self.s1.setValue(process.nice())
+        self.s1.setTickInterval(1)
+        self.s1.setTickPosition(QSlider.TicksBelow)
+        self.s1.valueChanged.connect(self.slider_change)
+        self.b1.clicked.connect(self.set_priority(process))
+        hbox.addWidget(self.s1)
+        hbox.addWidget(self.l1)
+        vbox.addLayout(hbox)
+        vbox.addWidget(self.b1)
+        d.setLayout(vbox)
+        d.setWindowModality(Qt.ApplicationModal)
+        d.exec_()
 
-        pass
+    def slider_change(self):
+        value = self.s1.value()
+        self.l1.setText(str(value))
+
+    def set_priority(self, process):
+        def process_priority():
+            value = self.s1.value()
+            process.nice(value)
+        return process_priority
 
 
 app = QApplication(sys.argv)
@@ -180,3 +214,4 @@ task_mgr.show()
 task_mgr.timer.start(1000)
 
 sys.exit(app.exec_())
+
