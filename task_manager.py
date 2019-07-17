@@ -1,9 +1,13 @@
+#!/usr/bin/sudo python
+from bidict import bidict as bidict
+import qtawesome as qta
 import sys
 import psutil
+from PyQt5.QtPrintSupport import QPrinter
 from PyQt5.QtWidgets import QTableWidget, QApplication, QMainWindow, QTableWidgetItem, QMenu, QAbstractItemView, \
-    QMessageBox, QSlider, QWidget, QVBoxLayout, QPushButton, QDialog, QLineEdit, QLabel, QHBoxLayout
-from PyQt5 import QtCore
-from PyQt5.QtCore import Qt
+    QMessageBox, QSlider, QWidget, QVBoxLayout, QPushButton, QDialog, QLineEdit, QLabel, QHBoxLayout, QFileDialog
+from PyQt5 import QtCore, QtGui, QtPrintSupport, QtWidgets
+from PyQt5.QtCore import Qt, QFileInfo
 import psutil_test
 
 
@@ -36,10 +40,10 @@ class TaskManager(QMainWindow):
         rows = psutil_test.rows
         self.form_widget = MyTable(rows, 10)
         self.setCentralWidget(self.form_widget)
-        col_headers = ['P-ID', 'P-Name', 'User', 'Virt-Mem', 'Res-Mem', 'Shd-Mem', 'Mem %', 'CPU %', 'Path', 'Priority']
+        self.col_headers = ['P-ID', 'P-Name', 'User', 'Virt-Mem', 'Res-Mem', 'Shd-Mem', 'Mem %', 'CPU %', 'Path', 'Priority']
         self.key = 'pid'
         self.flag = False
-        self.form_widget.setHorizontalHeaderLabels(col_headers)
+        self.form_widget.setHorizontalHeaderLabels(self.col_headers)
         self.timer = QtCore.QTimer(self)
         self.timer.setInterval(3000)
         self.timer.timeout.connect(self.change_values)
@@ -55,7 +59,6 @@ class TaskManager(QMainWindow):
         new_list = psutil_test.getListOfProcesses()
         final_list = self.sort_list(new_list, self.key, self.flag)  # set value function to be called by button trigger
         self.form_widget.setRowCount(len(final_list))
-        # print(new_list)
 
         for i, process in enumerate(final_list):
             self.form_widget.setItem(i, 0, QTableWidgetItem(str(process['pid'])))
@@ -73,6 +76,7 @@ class TaskManager(QMainWindow):
         context_menu = QMenu(self)
         kill_act = context_menu.addAction("Kill")
         change_priority = context_menu.addMenu("Change priority")
+        print_pdf = context_menu.addAction("print PDF")
         quit_act = context_menu.addAction("Exit")
 
         highest_priority = change_priority.addAction("HIGHEST")
@@ -121,46 +125,55 @@ class TaskManager(QMainWindow):
             process = psutil.Process(pid=int(id))
             self.set_custom_priority(process)
 
+        if action == print_pdf:
+            self.handle_print()
+
     def sort_list(self, sort_list, key, flag):
         return sorted(sort_list, key=lambda obj: obj[key], reverse=flag)
 
     def set_values(self, col):
-        # print(col)
-        if col == 0:
-            self.flag = not self.flag
-            self.key = 'pid'
+        self.key = self.col_header_key_header_index.inverse.get(col)
+        self.flag = not self.flag
+        self.change_header_value(self.flag, self.key)
 
-        if col == 1:
-            self.flag = not self.flag
-            self.key = 'name'
+    def _get_widget_item(self, flag: bool, name: str):
+        if flag:
+            return QTableWidgetItem(qta.icon('mdi.arrow-down-drop-circle'), name)
+        else:
+            return QTableWidgetItem(qta.icon('mdi.arrow-up-drop-circle'), name)
 
-        if col == 2:
-            self.flag = not self.flag
-            self.key = 'username'
+    col_header_key_header_name = {
+        'pid': "P-ID",
+        'name': "P-Name",
+        'username': "User",
+        'vms': "Virt-Mem",
+        'res': "Res-Mem",
+        'shared': "Shd-Mem",
+        'mem_per': "Mem %",
+        'cpu': "CPU %",
+        'path': "Path",
+        'priority': "Priority"
+    }
 
-        if col == 3:
-            self.flag = not self.flag
-            self.key = 'vms'
+    col_header_key_header_index = bidict({
+        'pid': 0,
+        'name': 1,
+        'username': 2,
+        'vms': 3,
+        'res': 4,
+        'shared': 5,
+        'mem_per': 6,
+        'cpu': 7,
+        'path': 8,
+        'priority': 9
+    })
 
-        if col == 4:
-            self.flag = not self.flag
-            self.key = 'res'
-
-        if col == 5:
-            self.flag = not self.flag
-            self.key = 'shared'
-
-        if col == 6:
-            self.flag = not self.flag
-            self.key = 'mem_per'
-
-        if col == 7:
-            self.flag = not self.flag
-            self.key = 'cpu'
-
-        if col == 8:
-            self.flag = not self.flag
-            self.key = 'path'
+    def change_header_value(self, flag, key):
+        for i, header in enumerate(self.col_headers):
+            self.form_widget.setHorizontalHeaderItem(i, QTableWidgetItem(str(header)))
+        self.form_widget.setHorizontalHeaderItem(self.col_header_key_header_index.get(key), self._get_widget_item(flag, self.col_header_key_header_name.get(key)))
+        self.form_widget.horizontalHeader().setDefaultAlignment(Qt.AlignCenter)
+        # self.form_widget.QHeaderView
 
     def confirm_kill_process(self, process):
         message = QMessageBox.question(self, "Kill Process", "Are you sure you want to kill this process ?",
@@ -204,6 +217,28 @@ class TaskManager(QMainWindow):
             value = self.s1.value()
             process.nice(value)
         return process_priority
+
+    def handle_print(self):
+        dialog = QtPrintSupport.QPrintDialog()
+        if dialog.exec_() == QtWidgets.QDialog.Accepted:
+            self.handle_paint_request(dialog.printer())
+
+    def handle_paint_request(self, printer):
+        document = QtGui.QTextDocument()
+        cursor = QtGui.QTextCursor(document)
+        for head in self.col_headers:
+            cursor.insertText(head + "    ")
+            cursor.movePosition(QtGui.QTextCursor.NextCell)
+
+        table = cursor.insertTable(self.form_widget.rowCount(), self.form_widget.columnCount())
+
+        for row in range(table.rows()):
+            for col in range(table.columns()):
+                item = self.form_widget.item(row, col)
+                if item is not None:
+                    cursor.insertText(item.text())
+                cursor.movePosition(QtGui.QTextCursor.NextCell)
+        document.print_(printer)
 
 
 app = QApplication(sys.argv)
