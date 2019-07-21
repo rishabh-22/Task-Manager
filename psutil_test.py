@@ -21,6 +21,7 @@ def getListOfProcesses():
             pinfo['cpu'] = proc.cpu_percent()
             pinfo['path'] = proc.cwd()
             pinfo['priority'] = proc.nice()
+            pinfo['time'] = proc.create_time()
 
             # Append dict to list
             listOfProcObjects.append(pinfo)
@@ -38,4 +39,3 @@ def getListOfProcesses():
     return listOfProcObjects
 
 getListOfProcesses()
-

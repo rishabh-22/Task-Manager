@@ -1,13 +1,14 @@
 #!/usr/bin/sudo python
+import datetime
+
 from bidict import bidict as bidict
 import qtawesome as qta
 import sys
 import psutil
-from PyQt5.QtPrintSupport import QPrinter
 from PyQt5.QtWidgets import QTableWidget, QApplication, QMainWindow, QTableWidgetItem, QMenu, QAbstractItemView, \
-    QMessageBox, QSlider, QWidget, QVBoxLayout, QPushButton, QDialog, QLineEdit, QLabel, QHBoxLayout, QFileDialog
+    QMessageBox, QSlider, QVBoxLayout, QPushButton, QDialog, QLabel, QHBoxLayout
 from PyQt5 import QtCore, QtGui, QtPrintSupport, QtWidgets
-from PyQt5.QtCore import Qt, QFileInfo
+from PyQt5.QtCore import Qt
 import psutil_test
 
 
@@ -38,9 +39,9 @@ class TaskManager(QMainWindow):
     def __init__(self):
         super().__init__()
         rows = psutil_test.rows
-        self.form_widget = MyTable(rows, 10)
+        self.form_widget = MyTable(rows, 11)
         self.setCentralWidget(self.form_widget)
-        self.col_headers = ['P-ID', 'P-Name', 'User', 'Virt-Mem', 'Res-Mem', 'Shd-Mem', 'Mem %', 'CPU %', 'Path', 'Priority']
+        self.col_headers = ['P-ID', 'P-Name', 'User', 'Virt-Mem', 'Res-Mem', 'Shd-Mem', 'Mem %', 'CPU %', 'Path', 'Priority', 'Created']
         self.key = 'pid'
         self.flag = False
         self.form_widget.setHorizontalHeaderLabels(self.col_headers)
@@ -71,13 +72,20 @@ class TaskManager(QMainWindow):
             self.form_widget.setItem(i, 7, QTableWidgetItem(str(process['cpu'])))
             self.form_widget.setItem(i, 8, QTableWidgetItem(str(process['path'])))
             self.form_widget.setItem(i, 9, QTableWidgetItem(str(process['priority'])))
+            self.form_widget.setItem(i, 10, QTableWidgetItem(str(datetime.datetime.fromtimestamp(process['time']))))
 
     def contextMenuEvent(self, event):
         context_menu = QMenu(self)
+        id = self.form_widget.get_current_id()
+        process = psutil.Process(pid=int(id))
         kill_act = context_menu.addAction("Kill")
         change_priority = context_menu.addMenu("Change priority")
-        print_pdf = context_menu.addAction("print PDF")
-        quit_act = context_menu.addAction("Exit")
+        if process.status() == 'stopped':
+            status_change = context_menu.addAction("Resume")
+        else:
+            status_change = context_menu.addAction("Suspend")
+        print_pdf = context_menu.addAction("Print PDF")
+        quit_act = context_menu.addAction("Quit")
 
         highest_priority = change_priority.addAction("HIGHEST")
         high_priority = change_priority.addAction("HIGH")
@@ -91,42 +99,34 @@ class TaskManager(QMainWindow):
             self.close()
 
         if action == kill_act:
-            id = self.form_widget.get_current_id()
-            process = psutil.Process(pid=int(id))
             self.confirm_kill_process(process)
 
         if action == highest_priority:
-            id = self.form_widget.get_current_id()
-            process = psutil.Process(pid=int(id))
             process.nice(-20)
 
         if action == high_priority:
-            id = self.form_widget.get_current_id()
-            process = psutil.Process(pid=int(id))
             process.nice(-10)
 
         if action == medium_priority:
-            id = self.form_widget.get_current_id()
-            process = psutil.Process(pid=int(id))
             process.nice(0)
 
         if action == low_priority:
-            id = self.form_widget.get_current_id()
-            process = psutil.Process(pid=int(id))
             process.nice(10)
 
         if action == lowest_priority:
-            id = self.form_widget.get_current_id()
-            process = psutil.Process(pid=int(id))
             process.nice(-20)
 
         if action == custom_priority:
-            id = self.form_widget.get_current_id()
-            process = psutil.Process(pid=int(id))
             self.set_custom_priority(process)
 
         if action == print_pdf:
             self.handle_print()
+
+        if action == status_change:
+            if process.status() == 'stopped':
+                self.resume_process(process)
+            else:
+                self.suspend_process(process)
 
     def sort_list(self, sort_list, key, flag):
         return sorted(sort_list, key=lambda obj: obj[key], reverse=flag)
@@ -152,7 +152,8 @@ class TaskManager(QMainWindow):
         'mem_per': "Mem %",
         'cpu': "CPU %",
         'path': "Path",
-        'priority': "Priority"
+        'priority': "Priority",
+        'time': "Created"
     }
 
     col_header_key_header_index = bidict({
@@ -165,7 +166,8 @@ class TaskManager(QMainWindow):
         'mem_per': 6,
         'cpu': 7,
         'path': 8,
-        'priority': 9
+        'priority': 9,
+        'time': 10,
     })
 
     def change_header_value(self, flag, key):
@@ -173,7 +175,6 @@ class TaskManager(QMainWindow):
             self.form_widget.setHorizontalHeaderItem(i, QTableWidgetItem(str(header)))
         self.form_widget.setHorizontalHeaderItem(self.col_header_key_header_index.get(key), self._get_widget_item(flag, self.col_header_key_header_name.get(key)))
         self.form_widget.horizontalHeader().setDefaultAlignment(Qt.AlignCenter)
-        # self.form_widget.QHeaderView
 
     def confirm_kill_process(self, process):
         message = QMessageBox.question(self, "Kill Process", "Are you sure you want to kill this process ?",
@@ -225,12 +226,25 @@ class TaskManager(QMainWindow):
 
     def handle_paint_request(self, printer):
         document = QtGui.QTextDocument()
-        cursor = QtGui.QTextCursor(document)
-        for head in self.col_headers:
-            cursor.insertText(head + "    ")
-            cursor.movePosition(QtGui.QTextCursor.NextCell)
+        info_cursor = QtGui.QTextCursor(document)
+        info_table = info_cursor.insertTable(5, 1)
 
-        table = cursor.insertTable(self.form_widget.rowCount(), self.form_widget.columnCount())
+        info_cursor.insertText("Current time: {}".format(datetime.datetime.now()))
+        info_cursor.movePosition(QtGui.QTextCursor.NextCell)
+        info_cursor.insertText("System up time: {}".format(datetime.datetime.now() - datetime.datetime.fromtimestamp(psutil.boot_time())))
+        info_cursor.movePosition(QtGui.QTextCursor.NextCell)
+        info_cursor.insertText("Memory Usage: {}%".format(psutil.virtual_memory().percent))
+        info_cursor.movePosition(QtGui.QTextCursor.NextCell)
+        info_cursor.insertText("CPU Usage: {}%".format(psutil.cpu_percent()))
+        info_cursor.movePosition(QtGui.QTextCursor.NextCell)
+        info_cursor.insertText("Disk Usage: {}%".format(psutil.disk_usage('/')[3]))
+
+        cursor = QtGui.QTextCursor(document)
+        table = cursor.insertTable(self.form_widget.rowCount() + 1, self.form_widget.columnCount())
+
+        for count in range(len(self.col_headers)):
+            cursor.insertText(self.form_widget.horizontalHeaderItem(count).text())
+            cursor.movePosition(QtGui.QTextCursor.NextCell)
 
         for row in range(table.rows()):
             for col in range(table.columns()):
@@ -239,6 +253,23 @@ class TaskManager(QMainWindow):
                     cursor.insertText(item.text())
                 cursor.movePosition(QtGui.QTextCursor.NextCell)
         document.print_(printer)
+
+    def suspend_process(self, process):
+        message = QMessageBox.question(self, "Suspend Process", "Are you sure you want to suspend this process for now?",
+                                       QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if message == QMessageBox.Yes:
+            process.suspend()
+        else:
+            pass
+
+    def resume_process(self, process):
+        message = QMessageBox.question(self, "Suspend Process",
+                                       "Are you sure you want to resume this process now?",
+                                       QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if message == QMessageBox.Yes:
+            process.resume()
+        else:
+            pass
 
 
 app = QApplication(sys.argv)
@@ -249,4 +280,3 @@ task_mgr.show()
 task_mgr.timer.start(1000)
 
 sys.exit(app.exec_())
-
