@@ -78,6 +78,7 @@ class TaskManager(QMainWindow):
         context_menu = QMenu(self)
         id = self.form_widget.get_current_id()
         process = psutil.Process(pid=int(id))
+        info = context_menu.addAction("More Info")
         kill_act = context_menu.addAction("Kill")
         change_priority = context_menu.addMenu("Change priority")
         if process.status() == 'stopped':
@@ -97,6 +98,9 @@ class TaskManager(QMainWindow):
         action = context_menu.exec_(self.mapToGlobal(event.pos()))
         if action == quit_act:
             self.close()
+
+        if action == info:
+            self.show_info(process)
 
         if action == kill_act:
             self.confirm_kill_process(process)
@@ -271,6 +275,40 @@ class TaskManager(QMainWindow):
         else:
             pass
 
+    def show_info(self, process):
+        info_dialog = QDialog()
+        l1 = QLabel()
+        l2 = QLabel()
+        l3 = QLabel()
+        l4 = QLabel()
+        l5 = QLabel()
+        l6 = QLabel()
+        l7 = QLabel()
+        l8 = QLabel()
+
+        info_dialog.setWindowTitle(process.name())
+        l1.setText(str("Process ID: {}".format(process.pid)))
+        l2.setText(str("User: {}".format(process.username())))
+        l3.setText(str("Process Status: {}".format(process.status())))
+        l4.setText(str("Memory Info: {}".format(process.memory_info())))
+        l5.setText(str("CPU Usage: {}".format(process.cpu_percent())))
+        l6.setText(str("Path: {}".format(process.cwd())))
+        l7.setText(str("Priority: {}".format(process.nice())))
+        l8.setText(str("Created Time: {}".format(datetime.datetime.fromtimestamp(process.create_time()))))
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(l1)
+        vbox.addWidget(l2)
+        vbox.addWidget(l3)
+        vbox.addWidget(l4)
+        vbox.addWidget(l5)
+        vbox.addWidget(l6)
+        vbox.addWidget(l7)
+        vbox.addWidget(l8)
+        info_dialog.setLayout(vbox)
+        info_dialog.setWindowModality(Qt.ApplicationModal)
+        info_dialog.exec_()
+
 
 app = QApplication(sys.argv)
 
@@ -280,3 +318,4 @@ task_mgr.show()
 task_mgr.timer.start(1000)
 
 sys.exit(app.exec_())
+
