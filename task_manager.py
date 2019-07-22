@@ -233,7 +233,7 @@ class TaskManager(QMainWindow):
         info_cursor = QtGui.QTextCursor(document)
         info_table = info_cursor.insertTable(5, 1)
 
-        info_cursor.insertText("Current time: {}".format(datetime.datetime.now()))
+        info_cursor.insertText("Current date & time: {}".format(datetime.datetime.now()))
         info_cursor.movePosition(QtGui.QTextCursor.NextCell)
         info_cursor.insertText("System up time: {}".format(datetime.datetime.now() - datetime.datetime.fromtimestamp(psutil.boot_time())))
         info_cursor.movePosition(QtGui.QTextCursor.NextCell)
