@@ -53,6 +53,9 @@ class TaskManager(QMainWindow):
         self.l1 = QLabel()
         self.s1 = QSlider(Qt.Horizontal)
         self.setGeometry(100, 50, 1138, 600)
+        header = self.form_widget.horizontalHeader()
+        for i in range(len(self.col_headers)):
+            header.setSectionResizeMode(i, QtWidgets.QHeaderView.Stretch)
 
     @QtCore.pyqtSlot()
     def change_values(self):
