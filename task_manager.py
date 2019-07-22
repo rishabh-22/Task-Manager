@@ -1,6 +1,5 @@
 #!/usr/bin/sudo python
 import datetime
-
 from bidict import bidict as bidict
 import qtawesome as qta
 import sys
@@ -53,6 +52,7 @@ class TaskManager(QMainWindow):
         self.b1 = QPushButton()
         self.l1 = QLabel()
         self.s1 = QSlider(Qt.Horizontal)
+        self.setGeometry(100, 50, 1138, 600)
 
     @QtCore.pyqtSlot()
     def change_values(self):
